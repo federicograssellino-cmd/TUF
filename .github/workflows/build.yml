@@ -1,0 +1,76 @@
+name: Build TUF
+
+# RICHIESTA: "si peò capisci che è macchinoso?!" -> automatizzare la
+# creazione di TUF.exe e Installa_TUF.exe, cosi' Fede non deve piu'
+# fare doppio click su Crea_Installer_TUF.bat sul suo PC ad ogni versione.
+# Questo workflow fa girare un PC Windows nel cloud (gratuito per
+# repository pubblici) che compila i due file al posto suo, ogni volta
+# che il codice viene caricato su GitHub o quando pubblica una Release.
+#
+# COSA SUCCEDE:
+#   - push sul branch main -> compila e mette i due file scaricabili
+#     nella scheda "Actions" del repository (come "artifact");
+#   - pubblicazione di una Release -> compila e allega DIRETTAMENTE
+#     TUF.exe e Installa_TUF.exe alla pagina della Release: da quel
+#     momento basta condividere il link della Release, senza mandare
+#     zip o chiavette a nessuno. Non serve nessun account GitHub per
+#     scaricare da li'.
+
+on:
+  push:
+    branches: [ main ]
+  release:
+    types: [ published ]
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Scarica il codice
+        uses: actions/checkout@v4
+
+      - name: Prepara Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Installa le librerie di TUF + PyInstaller
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Crea TUF.exe
+        run: >
+          pyinstaller --onefile --windowed --name TUF
+          --icon "filepilot\assets\tuf_icon.ico"
+          --add-data "filepilot/assets;filepilot/assets"
+          --add-data "TERMINI_E_CONDIZIONI.pdf;."
+          --add-data "PRIVACY.md;."
+          filepilot\main.py
+
+      - name: Crea Installa_TUF.exe
+        run: >
+          pyinstaller --onefile --windowed --name Installa_TUF
+          --icon "filepilot\assets\tuf_icon.ico"
+          install_tuf.py
+
+      - name: Carica i due file come risultato della build
+        uses: actions/upload-artifact@v4
+        with:
+          name: TUF-windows
+          path: |
+            dist/TUF.exe
+            dist/Installa_TUF.exe
+
+      - name: Allega i due file alla Release (solo quando ne pubblichi una)
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/TUF.exe
+            dist/Installa_TUF.exe
