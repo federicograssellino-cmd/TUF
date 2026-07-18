@@ -38,6 +38,8 @@ from filepilot.core.delete_worker import DuplicateDeleteWorker, DeleteItem
 from filepilot.ui.settings_dialog import SettingsDialog
 from filepilot.ui.quick_guide_dialog import QuickGuideDialog
 from filepilot.ui.onboarding_tour import OnboardingTour, TourStep
+from filepilot.ui.language_dialog import LanguageDialog
+from filepilot.i18n import tr, set_language
 from filepilot.ui.multi_filter import MultiTypeFilter
 from filepilot.core.voice_control import VoiceWorker, parse_voice_command, parse_yes_no
 from filepilot.ui.fly_animation import animate_file_to_folder
@@ -71,6 +73,11 @@ class MainWindow(QMainWindow):
         self.setStyleSheet("background-color: #181818;")
 
         self.config = ConfigManager()
+        # RICHIESTA: "implementiamo anche le lingue!" — la lingua va
+        # impostata SUBITO, prima di costruire qualunque testo della UI
+        # (bottom_bar, folder_panel, ecc. leggono tr() durante la loro
+        # stessa costruzione qui sotto in _build_ui()).
+        set_language(self.config.get("language", "en"))
 
         self.all_items: list[FileItem] = []
         self.filtered_items: list[FileItem] = []
@@ -139,7 +146,7 @@ class MainWindow(QMainWindow):
         # costruttore), invece che durante __init__ quando la finestra
         # non ha ancora una geometria definitiva sullo schermo.
         if not self.config.get("guide_seen", False):
-            QTimer.singleShot(200, self._show_first_run_guide)
+            QTimer.singleShot(200, self._show_first_run_language_then_guide)
 
         # RICHIESTA: "vorrei rilasciare gli aggiornamenti su software
         # installati su altri pc" — controllo in background, poco dopo
@@ -164,6 +171,32 @@ class MainWindow(QMainWindow):
         if self._update_release_url:
             QDesktopServices.openUrl(QUrl(self._update_release_url))
 
+    def _show_first_run_language_then_guide(self) -> None:
+        # RICHIESTA: "il primo run deve essere in inglese e devi poter
+        # scegliere la lingua da subito" — prima di qualunque altra
+        # cosa (guida, Termini, tour), l'utente sceglie la lingua. Il
+        # dialogo parte gia' in inglese (vedi config.py default
+        # "language": "en") e non ha la X (is_first_run=True): come i
+        # Termini nella guida rapida, e' un passo obbligato una volta
+        # sola, non bypassabile chiudendo la finestra.
+        if not self.config.get("language_chosen", False):
+            lang_dialog = LanguageDialog(self, is_first_run=True)
+            lang_dialog.exec()
+            chosen = lang_dialog.selected_language
+            set_language(chosen)
+            self.config.set("language", chosen)
+            self.config.set("language_chosen", True)
+            self.config.save()
+            # Nota: la finestra principale (main_window.py) e le altre
+            # ~15 schermate non sono ancora passate a tr() (fase 2, vedi
+            # TUF_HANDOFF) — restano in italiano fisso qualunque lingua
+            # si scelga qui. Guida rapida, Termini e tour, mostrati
+            # SUBITO dopo, sono invece gia' completamente localizzati:
+            # vengono costruiti ORA, dopo set_language(), quindi
+            # riflettono la scelta appena fatta senza bisogno di un
+            # "retranslate" a caldo.
+        self._show_first_run_guide()
+
     def _show_first_run_guide(self) -> None:
         QuickGuideDialog(self).exec()
         self.config.set("guide_seen", True)
@@ -184,59 +217,22 @@ class MainWindow(QMainWindow):
         Richiamabile anche a mano da Impostazioni > Info ("Tour
         interattivo"), non solo al primissimo avvio."""
         steps = [
-            TourStep(
-                lambda: self.bottom_bar.btn_open,
-                "Apri una cartella",
-                "Si parte da qui: apri la cartella con le tue foto, "
-                "video, documenti (o quasi qualunque altro formato).",
-            ),
-            TourStep(
-                lambda: self.preview_stack,
-                "Anteprima",
-                "I file compaiono qui uno alla volta. Scorri con le "
-                "frecce ◀ ▶ della barra in basso (o con la tastiera).",
-            ),
-            TourStep(
-                lambda: self.folder_panel,
-                "Cartelle di destinazione",
-                "Clicca una cartella (o premi il suo numero sulla "
-                "tastiera) per spostarci subito il file che stai "
-                "guardando. Il tasto ✏ permette di riordinarle o "
-                "rinumerarle trascinandole.",
-            ),
-            TourStep(
-                lambda: self.add_folder_btn,
-                "Aggiungi cartelle",
-                "Da qui aggiungi nuove cartelle di destinazione. Puoi "
-                "anche trascinarne una direttamente da Esplora risorse.",
-            ),
-            TourStep(
-                lambda: self.bottom_bar.btn_delete,
-                "Elimina",
-                "Sposta il file corrente nel Cestino interno di TUF: "
-                "resta recuperabile con Undo finché non chiudi il "
-                "programma.",
-            ),
-            TourStep(
-                lambda: self.bottom_bar.btn_undo,
-                "Annulla (Undo)",
-                "Se sposti o elimini per sbaglio, questo tasto annulla "
-                "l'ultima azione.",
-            ),
-            TourStep(
-                lambda: self.bottom_bar.mic_button,
-                "Comando vocale (facoltativo)",
-                "Puoi anche dire \"avanti\", \"indietro\", \"cestino\" o "
-                "il nome di una cartella per navigare senza mouse. Del "
-                "tutto facoltativo: funziona identico anche senza.",
-            ),
-            TourStep(
-                lambda: self.settings_btn,
-                "Impostazioni",
-                "Qui trovi i formati riconosciuti, le scorciatoie "
-                "personalizzabili, questa guida e il tour, e uno spazio "
-                "per lasciare consigli o segnalare formati mancanti.",
-            ),
+            TourStep(lambda: self.bottom_bar.btn_open,
+                     tr("tour.step1.title"), tr("tour.step1.text")),
+            TourStep(lambda: self.preview_stack,
+                     tr("tour.step2.title"), tr("tour.step2.text")),
+            TourStep(lambda: self.folder_panel,
+                     tr("tour.step3.title"), tr("tour.step3.text")),
+            TourStep(lambda: self.add_folder_btn,
+                     tr("tour.step4.title"), tr("tour.step4.text")),
+            TourStep(lambda: self.bottom_bar.btn_delete,
+                     tr("tour.step5.title"), tr("tour.step5.text")),
+            TourStep(lambda: self.bottom_bar.btn_undo,
+                     tr("tour.step6.title"), tr("tour.step6.text")),
+            TourStep(lambda: self.bottom_bar.mic_button,
+                     tr("tour.step7.title"), tr("tour.step7.text")),
+            TourStep(lambda: self.settings_btn,
+                     tr("tour.step8.title"), tr("tour.step8.text")),
         ]
         self._onboarding_tour = OnboardingTour(steps, self.centralWidget())
         self._onboarding_tour.finished.connect(self._on_onboarding_tour_finished)

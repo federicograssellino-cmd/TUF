@@ -55,6 +55,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+import uuid
 from dataclasses import dataclass, field, asdict
 from pathlib import Path
 from typing import Any
@@ -149,6 +150,30 @@ DEFAULTS: dict[str, Any] = {
     "splitter_state": None,     # posizione divisore preview/cartelle
     "sort_mode": "name",        # name | size | date
     "shortcuts": {},            # solo le VOCI CAMBIATE rispetto a DEFAULT_SHORTCUTS
+    # RICHIESTA: "implementiamo anche le lingue!" / "il primo run deve
+    # essere in inglese e devi poter scegliere la lingua da subito" —
+    # lingua attiva dell'interfaccia (vedi filepilot/i18n.py). Default
+    # "en": e' quella mostrata finche' l'utente non sceglie
+    # esplicitamente nel dialogo di primo avvio (ui/language_dialog.py,
+    # vedi anche "language_chosen" qui sotto).
+    "language": "en",
+    # True solo DOPO che l'utente ha scelto esplicitamente una lingua
+    # nel dialogo di primo avvio (non basta il default "en" sopra):
+    # serve a distinguere "non ha ancora scelto" da "ha scelto inglese
+    # apposta", cosi' il dialogo di scelta lingua compare una volta
+    # sola, come guide_seen per la guida rapida.
+    "language_chosen": False,
+    # RICHIESTA: "possiamo 'rendere unica' ogni copia?" — un ID casuale
+    # generato UNA VOLA in locale al primo avvio (vedi
+    # ConfigManager.get_install_id() sotto), SOLO per dare un'identita'
+    # a ogni installazione. Non e' una licenza, non blocca nulla, non
+    # viene mai mandato online automaticamente (resta coerente con la
+    # politica no-log): e' visibile in Impostazioni > Info e l'utente
+    # puo' copiarlo e includerlo VOLONTARIAMENTE in un feedback via
+    # Telegram, esattamente come gia' succede per nome/email in quel
+    # modulo (vedi core/feedback_sender.py). Stringa vuota finche' non
+    # viene generato (vedi get_install_id).
+    "install_id": "",
 }
 
 
@@ -168,6 +193,18 @@ class ConfigManager:
                     loaded = json.load(f)
                 merged = dict(DEFAULTS)
                 merged.update(loaded)
+                # RICHIESTA: "il primo run deve essere in inglese" — il
+                # default "en" (vedi DEFAULTS sopra) vale per chi installa
+                # TUF da zero. Chi invece aveva GIA' un config.json da
+                # prima che esistesse questa chiave (guide_seen=True, ma
+                # "language" assente: versioni precedenti erano solo in
+                # italiano) riparte in italiano invece che in inglese —
+                # non e' un "primo avvio", e' una migrazione di chi la
+                # usa gia' cosi'. Resta comunque cambiabile in un click
+                # da Impostazioni.
+                if "language" not in loaded and loaded.get("guide_seen"):
+                    merged["language"] = "it"
+                    merged["language_chosen"] = True
                 self.data = merged
             except (json.JSONDecodeError, OSError):
                 self.data = dict(DEFAULTS)
@@ -210,3 +247,17 @@ class ConfigManager:
 
     def set(self, key: str, value: Any) -> None:
         self.data[key] = value
+
+    # ------------------------------------------------- install id
+    def get_install_id(self) -> str:
+        """ID casuale univoco per questa installazione (vedi nota su
+        "install_id" in DEFAULTS sopra). Generato pigramente alla prima
+        richiesta e salvato subito, cosi' resta lo stesso per tutta la
+        vita di questa installazione (a meno che l'utente non cancelli
+        config.json)."""
+        current = self.data.get("install_id", "")
+        if not current:
+            current = uuid.uuid4().hex
+            self.data["install_id"] = current
+            self.save()
+        return current

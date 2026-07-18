@@ -28,54 +28,36 @@ from PySide6.QtWidgets import (
 )
 
 from filepilot.ui.branding import app_icon, enable_dark_titlebar, TUF_ORANGE
+from filepilot.i18n import tr
 
-_GUIDE_HTML = f"""
+def _guide_html() -> str:
+    return f"""
 <div style="color:#ddd; font-size:13px; line-height:145%;">
 
 <p style="color:{TUF_ORANGE}; font-size:20px; font-weight:700; margin-bottom:2px;">
-Benvenuto/a in TUF</p>
+{tr("guide.welcome_title")}</p>
 <p style="color:#999; font-size:12px; margin-top:0px;">
-Come funziona, in due minuti.</p>
+{tr("guide.welcome_subtitle")}</p>
 
-<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">Cos'è TUF</p>
-<p>TUF ti aiuta a scorrere, catalogare e ripulire foto, video, documenti e molti
-altri formati dentro una cartella, trovando anche i file duplicati.
-Gira tutto sul tuo computer: non salva mai il contenuto dei file che apri e
-non manda niente online (vedi "no log" nella scheda Info di Impostazioni).</p>
+<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">{tr("guide.what_is_title")}</p>
+<p>{tr("guide.what_is_body")}</p>
 
-<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">Come iniziare</p>
+<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">{tr("guide.how_start_title")}</p>
 <p>
-1. Apri una cartella da esplorare (pulsante cartella in alto).<br>
-2. Scegli i formati che ti interessano in <b>Impostazioni &gt; Formati</b>, oppure
-al volo dalla tendina <b>Filtri</b> in basso a sinistra.<br>
-3. Scorri i file con i tasti <b>avanti/indietro</b> (frecce, mouse o comando vocale).<br>
-4. Se un file non ti serve, usa il tasto <b>cestino</b>: va nel Cestino interno di
-TUF, recuperabile con <b>Annulla</b> finché non lo svuoti.
+{tr("guide.how_start_body")}
 </p>
 
-<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">Trovare i duplicati</p>
-<p>Premi <b>Cerca duplicati</b>: TUF li raggruppa e te li mostra fianco a fianco.
-Puoi tenerli tutti, cancellare le copie (tenendo la prima), cancellare
-tutto un gruppo, oppure scegliere colonna per colonna con i pulsanti
-"seleziona/deseleziona colonna". Niente sparisce senza che tu lo veda:
-i file segnati per l'eliminazione restano visibili ma marcati, finché
-non confermi.</p>
+<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">{tr("guide.duplicates_title")}</p>
+<p>{tr("guide.duplicates_body")}</p>
 
-<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">Comando vocale (facoltativo)</p>
-<p>Se lo attivi, puoi dire "avanti", "indietro", "cestino" o "annulla" per
-navigare senza mouse. Usa il servizio gratuito di Google per capire cosa
-dici (unica eccezione al funzionamento locale — vedi Termini e Condizioni
-e Privacy, in Impostazioni &gt; Info, per i dettagli). È del tutto facoltativo: TUF funziona
-identico anche solo con mouse e tastiera.</p>
+<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">{tr("guide.voice_title")}</p>
+<p>{tr("guide.voice_body")}</p>
 
-<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">Dove trovare il resto</p>
-<p>Il tasto <b>⚙ Impostazioni</b>, accanto al logo in alto, ha tutto il resto:
-i formati riconosciuti, le informazioni sull'app (scheda Info, con anche
-i Termini e Condizioni), e uno spazio per scriverci consigli o formati
-mancanti.</p>
+<p style="color:{TUF_ORANGE}; font-size:14px; font-weight:700;">{tr("guide.more_title")}</p>
+<p>{tr("guide.more_body")}</p>
 
 <p style="color:#888; font-size:11px; margin-top:14px;">
-Questa guida si riapre in qualsiasi momento da Impostazioni &gt; Info.</p>
+{tr("guide.footer_note")}</p>
 
 </div>
 """
@@ -84,7 +66,7 @@ Questa guida si riapre in qualsiasi momento da Impostazioni &gt; Info.</p>
 class QuickGuideDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Guida rapida — TUF")
+        self.setWindowTitle(tr("guide.window_title"))
         self.setWindowIcon(app_icon())
         self.setMinimumSize(520, 600)
 
@@ -93,7 +75,7 @@ class QuickGuideDialog(QDialog):
         scroll = QScrollArea()
         scroll.setWidgetResizable(True)
         scroll.setFrameShape(QFrame.NoFrame)
-        content = QLabel(_GUIDE_HTML)
+        content = QLabel(_guide_html())
         content.setWordWrap(True)
         content.setTextFormat(Qt.RichText)
         content.setAlignment(Qt.AlignTop)
@@ -109,12 +91,12 @@ class QuickGuideDialog(QDialog):
         terms_layout = QVBoxLayout(terms_box)
 
         terms_row = QHBoxLayout()
-        self.terms_checkbox = QCheckBox("Ho letto e accetto i Termini e Condizioni")
+        self.terms_checkbox = QCheckBox(tr("guide.terms_checkbox"))
         self.terms_checkbox.setStyleSheet("color: #ddd; font-size: 11.5px;")
         self.terms_checkbox.stateChanged.connect(self._on_terms_toggled)
         terms_row.addWidget(self.terms_checkbox, stretch=1)
 
-        read_terms_btn = QPushButton("Leggi i Termini")
+        read_terms_btn = QPushButton(tr("guide.read_terms_btn"))
         read_terms_btn.setStyleSheet(
             "QPushButton { background-color: #333; color: #ddd; border: 1px solid #555;"
             " border-radius: 4px; padding: 4px 10px; font-size: 11px; }"
@@ -127,7 +109,7 @@ class QuickGuideDialog(QDialog):
 
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
-        self.ok_btn = QPushButton("Ho capito, inizia")
+        self.ok_btn = QPushButton(tr("guide.ok_btn"))
         self.ok_btn.setEnabled(False)
         self.ok_btn.setStyleSheet(
             f"QPushButton {{ background-color: {TUF_ORANGE}; color: #1a1a1a; border: none;"
@@ -151,8 +133,8 @@ class QuickGuideDialog(QDialog):
             QDesktopServices.openUrl(QUrl.fromLocalFile(str(pdf_path)))
         else:
             QMessageBox.warning(
-                self, "Termini e Condizioni",
-                "Non trovo il file TERMINI_E_CONDIZIONI.pdf nella cartella del programma."
+                self, tr("guide.terms_missing_title"),
+                tr("guide.terms_missing_body"),
             )
 
     def _on_accept(self) -> None:
@@ -164,3 +146,27 @@ class QuickGuideDialog(QDialog):
         except Exception:
             pass  # l'accettazione resta comunque valida per questa sessione anche se il salvataggio fallisce
         self.accept()
+
+    # BUG RISOLTO ("l'utente puo' chiudere la finestra con la X o Esc
+    # senza aver spuntato i Termini, e la guida non si ripropone piu'"):
+    # il pulsante "Ho capito, inizia" restava disabilitato finche' i
+    # Termini non venivano accettati, ma QDialog chiude comunque la
+    # finestra su reject() (X della finestra, Esc, Alt+F4), che non
+    # passa da _on_accept(). main_window.py segnava pero' "guide_seen"
+    # a True subito dopo l'exec(), a prescindere dall'esito: risultato,
+    # l'accettazione era bypassabile e non veniva piu' richiesta.
+    # Ora chiudere la finestra senza aver accettato i Termini viene
+    # semplicemente ignorato (il dialogo resta aperto): l'unico modo
+    # di procedere e' spuntare la casella e premere "Ho capito, inizia".
+    def closeEvent(self, event) -> None:
+        if not self.terms_checkbox.isChecked():
+            event.ignore()
+            return
+        super().closeEvent(event)
+
+    def reject(self) -> None:
+        # Esc chiama reject() di default: stesso blocco di closeEvent,
+        # cosi' anche il tasto Esc non permette di bypassare i Termini.
+        if not self.terms_checkbox.isChecked():
+            return
+        super().reject()

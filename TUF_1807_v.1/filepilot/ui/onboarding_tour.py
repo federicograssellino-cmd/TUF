@@ -25,6 +25,7 @@ from PySide6.QtGui import QPainter, QColor, QPen, QRegion
 from PySide6.QtWidgets import QWidget, QFrame, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 
 from filepilot.ui.branding import TUF_ORANGE
+from filepilot.i18n import tr
 
 # Spazio (px) lasciato intorno al widget evidenziato prima di
 # disegnare il "buco" nell'overlay scuro, cosi' il riflettore non
@@ -89,7 +90,7 @@ class OnboardingTour(QWidget):
         c_layout.addWidget(self.text_label)
 
         btn_row = QHBoxLayout()
-        self.skip_btn = QPushButton("Salta tour")
+        self.skip_btn = QPushButton(tr("tour.skip_btn"))
         self.skip_btn.setCursor(Qt.PointingHandCursor)
         self.skip_btn.setStyleSheet(
             "QPushButton { background-color: transparent; color: #999; border: none;"
@@ -100,7 +101,7 @@ class OnboardingTour(QWidget):
         btn_row.addWidget(self.skip_btn)
         btn_row.addStretch(1)
 
-        self.next_btn = QPushButton("Avanti")
+        self.next_btn = QPushButton(tr("tour.next_btn"))
         self.next_btn.setCursor(Qt.PointingHandCursor)
         self.next_btn.setStyleSheet(
             f"QPushButton {{ background-color: {TUF_ORANGE}; color: #1a1a1a; border: none;"
@@ -149,10 +150,10 @@ class OnboardingTour(QWidget):
         self._target_rect = self._widget_rect_in_overlay(target)
 
         is_last = self._index == len(self._steps) - 1
-        self.step_label.setText(f"PASSO {self._index + 1} DI {len(self._steps)}")
+        self.step_label.setText(tr("tour.step_label", current=self._index + 1, total=len(self._steps)))
         self.title_label.setText(step.title)
         self.text_label.setText(step.text)
-        self.next_btn.setText("Fine, inizia!" if is_last else "Avanti")
+        self.next_btn.setText(tr("tour.finish_btn") if is_last else tr("tour.next_btn"))
 
         self._position_callout()
         self.callout.show()

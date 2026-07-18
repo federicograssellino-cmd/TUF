@@ -38,7 +38,7 @@ from PySide6.QtGui import QDesktopServices, QKeySequence
 from PySide6.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QDialogButtonBox,
     QLabel, QTabWidget, QWidget, QLineEdit, QScrollArea, QCheckBox, QPushButton,
-    QFrame, QPlainTextEdit, QMessageBox, QApplication, QKeySequenceEdit,
+    QFrame, QPlainTextEdit, QMessageBox, QApplication, QKeySequenceEdit, QComboBox,
 )
 
 from datetime import datetime
@@ -51,6 +51,7 @@ from filepilot.models import FileCategory, CATEGORY_LABELS, CATEGORY_EXTENSIONS,
 from filepilot.ui.branding import app_icon, enable_dark_titlebar, TUF_ORANGE
 from filepilot.ui.quick_guide_dialog import QuickGuideDialog
 from filepilot.core.feedback_sender import FeedbackSendWorker
+from filepilot.i18n import tr, SUPPORTED_LANGUAGES, LANGUAGE_NAMES, get_language, set_language
 
 # RICHIESTA: "possiamo creare un'interfaccia dove mi arrivano le
 # richieste feedback degli utenti?... piu' veloce farlo mandando una
@@ -86,6 +87,14 @@ class SettingsDialog(QDialog):
                  current_shortcuts: dict[str, str] | None = None, parent=None):
         super().__init__(parent)
         self._current_shortcuts = current_shortcuts or dict(DEFAULT_SHORTCUTS)
+        # RICHIESTA: "rendere unica ogni copia" — letto/generato qui,
+        # prima di costruire la scheda Info che lo mostra (vedi
+        # config.py, get_install_id()).
+        try:
+            from filepilot.config import ConfigManager
+            self._install_id = ConfigManager().get_install_id()
+        except Exception:
+            self._install_id = ""
         self._shortcut_edits: dict[str, QKeySequenceEdit] = {}
         # RICHIESTA: "ok con telegram" — worker in corso per l'invio
         # feedback/suggerimenti a Telegram (vedi core/feedback_sender.py).
@@ -529,6 +538,81 @@ class SettingsDialog(QDialog):
 
         v.addSpacing(14)
 
+        # RICHIESTA: "implementiamo anche le lingue!" — selettore
+        # lingua richiamabile in qualsiasi momento (non solo al primo
+        # avvio, vedi ui/language_dialog.py). Cambia subito
+        # config["language"] e la lingua attiva del processo (usata
+        # dalla guida rapida/Termini/tour la prossima volta che si
+        # aprono), ma il resto della finestra principale — non ancora
+        # passato a tr(), fase 2 — si aggiorna solo al prossimo avvio.
+        lang_box = QFrame()
+        lang_box.setStyleSheet(
+            "QFrame { background-color: #232323; border: 1px solid #3a3a3a; border-radius: 6px; }"
+        )
+        lang_v = QVBoxLayout(lang_box)
+        lang_row = QHBoxLayout()
+        lang_label = QLabel(tr("settings.language_label"))
+        lang_label.setStyleSheet(f"color: {TUF_ORANGE}; font-size: 13px; font-weight: 700; border: none;")
+        lang_row.addWidget(lang_label)
+        lang_row.addStretch(1)
+        self.language_combo = QComboBox()
+        for code in SUPPORTED_LANGUAGES:
+            self.language_combo.addItem(LANGUAGE_NAMES[code], userData=code)
+        current_code = get_language()
+        idx = self.language_combo.findData(current_code)
+        if idx >= 0:
+            self.language_combo.setCurrentIndex(idx)
+        self.language_combo.currentIndexChanged.connect(self._on_language_changed)
+        lang_row.addWidget(self.language_combo)
+        lang_v.addLayout(lang_row)
+        lang_note = QLabel(tr("settings.language_restart_note"))
+        lang_note.setStyleSheet("color: #888; font-size: 10.5px; border: none;")
+        lang_v.addWidget(lang_note)
+        v.addWidget(lang_box)
+
+        v.addSpacing(14)
+
+        # RICHIESTA: "possiamo 'rendere unica' ogni copia?" — ID locale
+        # univoco per installazione (vedi config.py, get_install_id()),
+        # SOLO per tracciabilità volontaria via feedback Telegram: non è
+        # una licenza, non blocca nulla, non viene mai inviato in
+        # automatico (coerente con il no-log). Generato la prima volta
+        # che questa scheda viene aperta.
+        id_box = QFrame()
+        id_box.setStyleSheet(
+            "QFrame { background-color: #232323; border: 1px solid #3a3a3a; border-radius: 6px; }"
+        )
+        id_v = QVBoxLayout(id_box)
+        id_label = QLabel(tr("settings.install_id_label"))
+        id_label.setStyleSheet(f"color: {TUF_ORANGE}; font-size: 13px; font-weight: 700; border: none;")
+        id_v.addWidget(id_label)
+
+        id_row = QHBoxLayout()
+        self.install_id_field = QLineEdit(self._install_id)
+        self.install_id_field.setReadOnly(True)
+        self.install_id_field.setStyleSheet(
+            "QLineEdit { background-color: #1a1a1a; color: #ccc; border: 1px solid #3a3a3a;"
+            " border-radius: 4px; padding: 4px; font-family: Consolas, monospace; font-size: 11px; }"
+        )
+        id_row.addWidget(self.install_id_field, stretch=1)
+        id_copy_btn = QPushButton(tr("settings.install_id_copy_btn"))
+        id_copy_btn.setStyleSheet(
+            "QPushButton { background-color: #333; color: #ddd; border: 1px solid #555;"
+            " border-radius: 4px; padding: 4px 10px; font-size: 11px; }"
+            "QPushButton:hover { background-color: #3d3d3d; }"
+        )
+        id_copy_btn.clicked.connect(self._copy_install_id)
+        id_row.addWidget(id_copy_btn)
+        id_v.addLayout(id_row)
+
+        id_note = QLabel(tr("settings.install_id_note"))
+        id_note.setWordWrap(True)
+        id_note.setStyleSheet("color: #888; font-size: 10.5px; border: none;")
+        id_v.addWidget(id_note)
+        v.addWidget(id_box)
+
+        v.addSpacing(14)
+
         func_title = QLabel("Cosa fa TUF")
         func_title.setStyleSheet(f"color: {TUF_ORANGE}; font-size: 13px; font-weight: 700;")
         v.addWidget(func_title)
@@ -589,6 +673,26 @@ class SettingsDialog(QDialog):
         outer.addLayout(btn_row2)
 
         return page
+
+    def _copy_install_id(self) -> None:
+        QApplication.clipboard().setText(self.install_id_field.text())
+        # RICHIESTA: piccola conferma visiva, stesso pattern gia' usato
+        # altrove nelle Impostazioni per "copiato negli appunti".
+        self.install_id_field.setToolTip(tr("settings.install_id_copied"))
+
+    def _on_language_changed(self, _index: int) -> None:
+        code = self.language_combo.currentData()
+        if not code:
+            return
+        set_language(code)
+        try:
+            from filepilot.config import ConfigManager
+            cfg = ConfigManager()
+            cfg.set("language", code)
+            cfg.set("language_chosen", True)
+            cfg.save()
+        except Exception:
+            pass  # la lingua resta comunque attiva per questa sessione anche se il salvataggio fallisce
 
     def _open_quick_guide(self) -> None:
         QuickGuideDialog(self).exec()
