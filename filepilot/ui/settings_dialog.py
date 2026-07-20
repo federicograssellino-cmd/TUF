@@ -83,6 +83,21 @@ class _TriStateCheckBox(QCheckBox):
 
 
 class SettingsDialog(QDialog):
+    # Stile base dei pulsanti "Invia" (Consigli/Formati mancanti):
+    # prima non avevano nessuno stile esplicito ed erano poco
+    # visibili (grigio di default) — ora sono arancioni come le altre
+    # azioni principali dell'app, cosi' si notano gia' a riposo, prima
+    # ancora di lampeggiare.
+    _SEND_BTN_STYLE = (
+        f"QPushButton {{ background-color: {TUF_ORANGE}; color: #1a1a1a; border: none;"
+        " border-radius: 4px; padding: 6px 16px; font-weight: 700; }"
+        "QPushButton:hover { background-color: #ff8a3d; }"
+    )
+    _SEND_BTN_BLINK_STYLE = (
+        "QPushButton { background-color: #fff2a8; color: #1a1a1a; border: 2px solid #fff;"
+        " border-radius: 4px; padding: 6px 16px; font-weight: 700; }"
+    )
+
     def __init__(self, enabled_extensions: set[str] | None = None,
                  current_shortcuts: dict[str, str] | None = None, parent=None):
         super().__init__(parent)
@@ -319,9 +334,23 @@ class SettingsDialog(QDialog):
         self.format_suggestion_edit.setPlaceholderText('es. .heif, oppure "formato audio Dolby Atmos"...')
         suggest_row.addWidget(self.format_suggestion_edit, stretch=1)
         self.format_suggestion_btn = QPushButton("Invia")
+        self.format_suggestion_btn.setStyleSheet(self._SEND_BTN_STYLE)
         self.format_suggestion_btn.clicked.connect(self._submit_format_suggestion)
         suggest_row.addWidget(self.format_suggestion_btn)
         suggest_layout.addLayout(suggest_row)
+        # SEGNALATO: "scrivono un consiglio/formato e poi cliccano
+        # direttamente OK (che chiude tutte le Impostazioni) invece di
+        # 'Invia': pensano di aver mandato il messaggio ma non parte
+        # niente" — il tasto Invia ora lampeggia finche' c'e' testo
+        # scritto e non ancora inviato, per farlo notare di piu' (vedi
+        # _start_blink/_stop_blink piu' sotto). C'e' anche un avviso
+        # separato se si chiude la finestra con testo non inviato
+        # (vedi _on_ok_clicked/_warn_unsent_feedback).
+        self.format_suggestion_edit.textChanged.connect(
+            lambda: self._on_feedback_text_changed(
+                self.format_suggestion_edit.text().strip(), self.format_suggestion_btn
+            )
+        )
 
         self.format_suggestion_status = QLabel("")
         self.format_suggestion_status.setStyleSheet("color: #6fd38a; font-size: 10px;")
@@ -863,6 +892,63 @@ class SettingsDialog(QDialog):
             result[action_id] = text or DEFAULT_SHORTCUTS[action_id]
         return result
 
+    # ---------------------------------- lampeggio tasti "Invia"
+    def _start_blink(self, button: QPushButton) -> None:
+        if getattr(button, "_blink_timer", None) is not None:
+            return  # gia' lampeggiante
+        timer = QTimer(self)
+        timer.setInterval(450)
+        state = {"on": False}
+
+        def _toggle() -> None:
+            state["on"] = not state["on"]
+            button.setStyleSheet(
+                self._SEND_BTN_BLINK_STYLE if state["on"] else self._SEND_BTN_STYLE
+            )
+
+        timer.timeout.connect(_toggle)
+        button._blink_timer = timer
+        timer.start()
+
+    def _stop_blink(self, button: QPushButton) -> None:
+        timer = getattr(button, "_blink_timer", None)
+        if timer is not None:
+            timer.stop()
+            button._blink_timer = None
+        button.setStyleSheet(self._SEND_BTN_STYLE)
+
+    def _on_feedback_text_changed(self, text: str, button: QPushButton) -> None:
+        if text:
+            self._start_blink(button)
+        else:
+            self._stop_blink(button)
+
+    def _has_unsent_feedback(self) -> bool:
+        return bool(
+            self.format_suggestion_edit.text().strip()
+            or self.feedback_edit.toPlainText().strip()
+        )
+
+    def _warn_unsent_feedback(self) -> bool:
+        """SEGNALATO: 'scrivono un consiglio o un formato mancante e
+        poi chiudono con OK invece di Invia, pensando che sia gia'
+        partito' — testo scritto ma mai inviato, perso in silenzio.
+        Richiamata prima di chiudere (OK o Annulla): se c'e' testo non
+        inviato in uno dei due box, chiede conferma invece di buttarlo
+        via senza dire niente. Restituisce True se si puo' procedere a
+        chiudere, False se bisogna restare aperti (l'utente vuole
+        tornare a inviare)."""
+        if not self._has_unsent_feedback():
+            return True
+        risposta = QMessageBox.question(
+            self, "Testo non inviato",
+            "Hai scritto un consiglio o un formato mancante ma non hai "
+            "premuto \"Invia\": chiudendo ora andrebbe perso.\n\n"
+            "Vuoi tornare indietro per inviarlo?",
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.Yes,
+        )
+        return risposta == QMessageBox.No  # No = "chiudi comunque, buttalo via"
+
     def _on_ok_clicked(self) -> None:
         seen: dict[str, str] = {}
         for action_id, key_str in self.selected_shortcuts().items():
@@ -877,7 +963,14 @@ class SettingsDialog(QDialog):
                 )
                 return
             seen[key_str] = action_id
+        if not self._warn_unsent_feedback():
+            return
         self.accept()
+
+    def reject(self) -> None:
+        if not self._warn_unsent_feedback():
+            return
+        super().reject()
 
     # --------------------------------------------------- scheda Consigli
     def _build_feedback_tab(self) -> QWidget:
@@ -941,9 +1034,15 @@ class SettingsDialog(QDialog):
         btn_row = QHBoxLayout()
         btn_row.addStretch(1)
         self.feedback_btn = QPushButton("Invia")
+        self.feedback_btn.setStyleSheet(self._SEND_BTN_STYLE)
         self.feedback_btn.clicked.connect(self._submit_feedback)
         btn_row.addWidget(self.feedback_btn)
         v.addLayout(btn_row)
+        self.feedback_edit.textChanged.connect(
+            lambda: self._on_feedback_text_changed(
+                self.feedback_edit.toPlainText().strip(), self.feedback_btn
+            )
+        )
 
         self.feedback_status = QLabel("")
         self.feedback_status.setAlignment(Qt.AlignCenter)

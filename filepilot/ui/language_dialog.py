@@ -54,12 +54,38 @@ class LanguageDialog(QDialog):
         subtitle.setStyleSheet("color: #999; font-size: 11.5px; margin-bottom: 10px;")
         layout.addWidget(subtitle)
 
+        # SEGNALATO: "ho selezionato italiano ma non c'era nulla di
+        # grafico che mi facesse capire quale lingua avevo scelto" —
+        # prima la selezione si vedeva solo dal minuscolo pallino
+        # standard di Qt, poco visibile sul tema scuro. Ora la voce
+        # selezionata ha un pallino arancione ben visibile PIU' uno
+        # sfondo/bordo evidenziato e testo arancione in grassetto su
+        # tutta la riga, cosi' la scelta e' inequivocabile a colpo
+        # d'occhio.
+        radio_style = (
+            "QRadioButton {"
+            "  color: #eee; font-size: 13px; padding: 8px 10px;"
+            "  border-radius: 6px; border: 1px solid transparent;"
+            "}"
+            "QRadioButton:hover { background-color: #232323; }"
+            f"QRadioButton:checked {{"
+            f"  color: {TUF_ORANGE}; font-weight: 700;"
+            f"  background-color: #2a2015; border: 1px solid {TUF_ORANGE};"
+            "}"
+            "QRadioButton::indicator {"
+            "  width: 16px; height: 16px; border-radius: 9px;"
+            "  border: 2px solid #777; background-color: #1a1a1a;"
+            "}"
+            f"QRadioButton::indicator:checked {{"
+            f"  border: 2px solid {TUF_ORANGE}; background-color: {TUF_ORANGE};"
+            "}"
+            f"QRadioButton::indicator:hover {{ border: 2px solid {TUF_ORANGE}; }}"
+        )
+
         self._group = QButtonGroup(self)
         for lang in SUPPORTED_LANGUAGES:
             radio = QRadioButton(LANGUAGE_NAMES[lang])
-            radio.setStyleSheet(
-                "QRadioButton { color: #eee; font-size: 13px; padding: 6px 2px; }"
-            )
+            radio.setStyleSheet(radio_style)
             radio.setChecked(lang == self.selected_language)
             radio.toggled.connect(lambda checked, l=lang: checked and self._on_selected(l))
             self._group.addButton(radio)
